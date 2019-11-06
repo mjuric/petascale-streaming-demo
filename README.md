@@ -1,5 +1,5 @@
 # Beyond VOEvent 2.0: Alert streaming in GB/s Era
-2019-11-8, Petabytes to Science: Data Inclusion Revolution, Boston, MA
+_2019-11-8, Petabytes to Science: Data Inclusion Revolution, Boston, MA_
 
 A hands-on demo of the Kafka streaming platform used for the ZTF and LSST,
 and a candidate for the next-generation system for distribution of
