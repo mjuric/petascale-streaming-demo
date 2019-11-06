@@ -9,7 +9,7 @@ from confluent_kafka import Consumer, KafkaError, TopicPartition
 from contextlib import contextmanager
 from collections import namedtuple
 
-from multiprocessing import Pool
+from multiprocessing import Pool as MPPool
 
 # FIXME: Make this into a proper class (safety in the unlikely case the user returns HEARTBEAT_SENTINEL)
 HEARTBEAT_SENTINEL = "__heartbeat__"
@@ -31,7 +31,7 @@ class ParseAndFilter:
 		with io.BytesIO(val) as fp:
 			rr = fastavro.reader(fp)
 			for record in rr:
-				record = munchify(record)
+#				record = munchify(record)
 				return topic, part, offs, self.filter(record)
 
 def parse_kafka_url(val, allow_no_topic=False):
@@ -73,7 +73,7 @@ class AlertBroker:
 			#   - start reading from the earliest (smallest) offset
 			import getpass, random
 			self.groupid = getpass.getuser() + '-' + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(20))
-			print(f"Generated fake groupid {self.groupid}")
+#			print(f"Generated fake groupid {self.groupid}")
 
 		self.c = Consumer({
 			'bootstrap.servers': self.brokers,
@@ -101,6 +101,9 @@ class AlertBroker:
 
 	def __exit__(self, type, value, traceback):
 		self.close()
+		if type == KeyboardInterrupt:
+			print("Aborted (CTRL-C).")
+			return True
 
 	def close(self):
 		if self.c:
@@ -192,7 +195,7 @@ class AlertBroker:
 			warnings.simplefilter("ignore")
 			from tqdm.autonotebook import tqdm
 
-		t = tqdm(disable=not progress, total=limit, desc='Alerts processed', unit=' alerts', mininterval=0.5, smoothing=0, miniters=0)
+		t = tqdm(disable=not progress, total=limit, desc='Alerts processed', unit=' alerts', mininterval=0.5, smoothing=0.5, miniters=0)
 
 		nread = 0
 		for idx, rec in self._filtered_stream(mapper=mapper, filter=filter, timeout=timeout):
@@ -214,7 +217,7 @@ class AlertBroker:
 	# possibly executed on ncores and up to maxread values, + heartbeats
 	def __call__(self, filter=None, pool=None, progress=False, timeout=None, limit=None):
 		if pool:
-			mapper = lambda fun, vec: pool.imap(fun, vec, chunksize=50)
+			mapper = lambda fun, vec: pool.imap(fun, vec, chunksize=100)
 		else:
 			mapper = map
 
@@ -224,9 +227,9 @@ class AlertBroker:
 		return self.__call__()
 
 @contextmanager
-def NicePool(*args, **kwarg):
+def Pool(*args, **kwarg):
 	original_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
-	p = Pool(*args, **kwarg)
+	p = MPPool(*args, **kwarg)
 	signal.signal(signal.SIGINT, original_sigint_handler)
 	try:
 		yield p
@@ -240,7 +243,7 @@ if __name__ == "__main__":
 
 	try:
 		from datetime import datetime
-		with NicePool(5) as workers:
+		with Pool(5) as workers:
 			with AlertBroker("kafka://broker0.do.alerts.wtf/test6", start_at="earliest") as stream:
 				for nread, (idx, rec) in enumerate(stream(filter=my_filter, pool=workers, progress=True, timeout=10), start=1):
 
